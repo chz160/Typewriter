@@ -1,0 +1,100 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-10"
+project: "Typewriter"
+project_type: "brownfield"
+selected_track: "method"
+field_type: "brownfield"
+workflow_path: "method-brownfield.yaml"
+
+workflow_status:
+  # Phase 0: Documentation (prerequisite for brownfield)
+  - phase: 0
+    name: "Documentation"
+    workflows:
+      - id: "document-project"
+        status: "docs/project-documentation/index.md"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:document-project"
+        output: "docs/project-documentation/"
+
+  # Phase 1: Analysis (Optional - user declined)
+  - phase: 1
+    name: "Analysis"
+    workflows:
+      - id: "brainstorm"
+        status: "skipped"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:brainstorming"
+        output: null
+      - id: "research"
+        status: "skipped"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:research"
+        output: null
+
+  # Phase 2: Planning
+  - phase: 2
+    name: "Planning"
+    workflows:
+      - id: "prd"
+        status: "_bmad-output/planning-artifacts/prd.md"
+        agent: "pm"
+        command: "/bmad:bmm:workflows:create-prd"
+        output: "_bmad-output/planning-artifacts/prd.md"
+      - id: "create-ux-design"
+        status: "skipped"
+        condition: "if_has_ui"
+        agent: "ux-designer"
+        command: "/bmad:bmm:workflows:create-ux-design"
+        output: null
+
+  # Phase 3: Solutioning
+  - phase: 3
+    name: "Solutioning"
+    workflows:
+      - id: "create-architecture"
+        status: "_bmad-output/planning-artifacts/architecture.md"
+        agent: "architect"
+        command: "/bmad:bmm:workflows:create-architecture"
+        output: "_bmad-output/planning-artifacts/architecture.md"
+      - id: "create-epics-and-stories"
+        status: "_bmad-output/planning-artifacts/epics.md"
+        agent: "pm"
+        command: "/bmad:bmm:workflows:create-epics-and-stories"
+        output: "_bmad-output/planning-artifacts/epics.md"
+      - id: "test-design"
+        status: "_bmad-output/test-design-system.md"
+        agent: "tea"
+        command: "/bmad:bmm:workflows:testarch-test-design"
+        output: "_bmad-output/test-design-system.md"
+      - id: "implementation-readiness"
+        status: "_bmad-output/planning-artifacts/implementation-readiness-report-2026-01-10.md"
+        agent: "architect"
+        command: "/bmad:bmm:workflows:check-implementation-readiness"
+        output: "_bmad-output/planning-artifacts/implementation-readiness-report-2026-01-10.md"
+
+  # Phase 4: Implementation
+  - phase: 4
+    name: "Implementation"
+    workflows:
+      - id: "sprint-planning"
+        status: "required"
+        agent: "sm"
+        command: "/bmad:bmm:workflows:sprint-planning"
+        output: null
