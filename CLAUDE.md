@@ -28,8 +28,12 @@ pwsh ./build/PackageReferences.ps1
 
 Since this is a .Net Framework 4.7.2 project and we want to stay at this version use msbuild.exe and vstest.console.exe build and test the project
 They are located here: 
-	/mnt/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe
-	/mnt/c/Program Files/Microsoft Visual Studio/18/Enterprise/Common7/IDE/Extensions/TestPlatform/vstest.console.exe
+   Windows:
+       c:/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe
+	    c:/Program Files/Microsoft Visual Studio/18/Enterprise/Common7/IDE/Extensions/TestPlatform/vstest.console.exe
+	WSL:
+       /mnt/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe
+	    /mnt/c/Program Files/Microsoft Visual Studio/18/Enterprise/Common7/IDE/Extensions/TestPlatform/vstest.console.exe
 
 ## Running Tests
 

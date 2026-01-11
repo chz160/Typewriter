@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Typewriter.Metadata.Roslyn"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Typewriter", "src\Typewriter\Typewriter.csproj", "{0427C151-9B9D-4C77-8A64-68BF2C929595}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Typewriter.CLI", "src\CLI\Typewriter.CLI.csproj", "{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Buildalyzer", "Buildalyzer", "{0469F12A-13D7-439A-9F02-29B0F05FD3DA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Buildalyzer", "Buildalyzer\src\Buildalyzer\Buildalyzer.csproj", "{47D9EE24-BC5F-49E9-B3D5-5E36D93D0715}"
@@ -68,6 +70,10 @@ Global
 		{0427C151-9B9D-4C77-8A64-68BF2C929595}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0427C151-9B9D-4C77-8A64-68BF2C929595}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0427C151-9B9D-4C77-8A64-68BF2C929595}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{47D9EE24-BC5F-49E9-B3D5-5E36D93D0715}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{47D9EE24-BC5F-49E9-B3D5-5E36D93D0715}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{47D9EE24-BC5F-49E9-B3D5-5E36D93D0715}.Release|Any CPU.ActiveCfg = Release|Any CPU
