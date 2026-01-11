@@ -60,7 +60,6 @@
     <ProjectReference Include="..\Metadata\Typewriter.Metadata.csproj" />
     <ProjectReference Include="..\Roslyn\Typewriter.Metadata.Roslyn.csproj" />
     <ProjectReference Include="..\Typewriter\Typewriter.csproj" />
-    <ProjectReference Include="..\CLI\Typewriter.CLI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
