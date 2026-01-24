@@ -33,7 +33,7 @@ The primary use case is enabling VS Code developers to execute `typewriter gener
 
 **Maximum Code Reuse:** The existing Typewriter architecture follows clean provider patterns with ~60% VS-independent code. The CLI reuses the proven template engine, code model, and Roslyn analysis - only the VS-specific orchestration layer is replaced.
 
-**Future-Proof Design:** By avoiding tight coupling to any specific build system naming or technology, the CLI architecture remains portable for eventual migration beyond .NET Framework 4.7.2.
+**Future-Proof Design:** By avoiding tight coupling to any specific build system naming or technology, the CLI architecture remains portable for eventual migration of the legacy portions of the solution beyond .NET Framework 4.7.2.
 
 **Flexible Configuration:** Supports both CLI arguments for scripting flexibility and configuration files (`.typewriterrc`) for team-standardized workflows.
 
@@ -45,13 +45,14 @@ The primary use case is enabling VS Code developers to execute `typewriter gener
 | **Domain** | Developer Tooling / Code Generation |
 | **Complexity** | Low-Medium |
 | **Project Context** | Brownfield - extending existing VS extension |
-| **Target Framework** | .NET Framework 4.7.2 (matching existing codebase) |
+| **Target Framework** | .NET 8 & .Net Standard 2.0 |
 | **Primary Audience** | VS Code developers, CI/CD pipelines, non-VS workflows |
 
 ### Architecture Approach
 
 The CLI will be implemented as a new `Typewriter.CLI` project that:
 - References existing `Typewriter.CodeModel`, `Typewriter.Metadata`, and core generation components
+- A .NET Standard 2.0 project `Typewriter.Core` should exist so that code from the legacy portion of the application can be refactored out and shared between the VS and CLI version of the tool.
 - Introduces a standalone workspace provider (replacing `VisualStudioWorkspace`)
 - Provides CLI argument parsing and configuration file support
 - Outputs to console with configurable verbosity levels
@@ -86,7 +87,7 @@ This approach follows DRY and SOLID principles by reusing the maximum amount of 
 | **Maximum code reuse** | Reuses existing `Typewriter.CodeModel`, `Typewriter.Metadata`, and generation engine |
 | **Minimal existing changes** | Zero or near-zero modifications to existing VS extension codebase |
 | **Output parity** | Byte-for-byte identical TypeScript generation as VS extension |
-| **Framework compatibility** | Remains on .NET Framework 4.7.2 matching existing codebase |
+| **Framework compatibility** | Legacy parts of the solution should remain .NET Framework 4.7.2, but the new CLI shoudl be .NET 8 |
 | **Solution integration** | CLI project builds as part of existing `Typewriter.sln` |
 
 ### Measurable Outcomes
@@ -124,7 +125,7 @@ Enhancements for broader adoption and usability:
 Long-term possibilities beyond initial release:
 
 - [ ] NuGet package distribution for easy installation
-- [ ] Cross-platform support (when migrating to .NET Core/.NET 5+)
+- [ ] Cross-platform support (when migrating to .NET Core/.NET 8+)
 - [ ] Watch mode for automatic regeneration on file changes
 - [ ] Integration with dotnet CLI (`dotnet typewriter generate`)
 - [ ] VS Code extension for enhanced integration
@@ -365,7 +366,7 @@ Error: Template compilation failed
 | Feature | Value |
 |---------|-------|
 | NuGet package distribution | `dotnet tool install typewriter` |
-| Cross-platform support | When migrating to .NET 5+ |
+| Cross-platform support | When migrating to .NET 8+ |
 | Watch mode | Continuous regeneration on save |
 | `dotnet typewriter` integration | Native dotnet CLI experience |
 | VS Code extension | Deep IDE integration with commands |
@@ -402,7 +403,6 @@ Error: Template compilation failed
 | MVP excludes config file | CLI args are sufficient for initial validation |
 | Plain text output only in MVP | JSON/quiet modes are Growth enhancements |
 | No watch mode | User explicitly scoped this out |
-| Stay on .NET Framework 4.7.2 | Match existing codebase, avoid migration complexity |
 
 ## Functional Requirements
 
@@ -499,10 +499,10 @@ Error: Template compilation failed
 
 | ID | Requirement | Metric |
 |----|-------------|--------|
-| NFR-C1 | CLI shall run on Windows 10/11 with .NET Framework 4.7.2 | Verified on Windows 10 21H2+ |
+| NFR-C1 | CLI shall run on Windows 10/11 with .NET 8 runetime | Verified on Windows 10 21H2+ |
 | NFR-C2 | CLI shall produce identical output to VS extension for same inputs | Diff-verified equivalence |
 | NFR-C3 | Existing .tst templates shall work without modification | 100% template compatibility |
-| NFR-C4 | CLI shall work with solutions created by VS 2019/2022/2025 | MSBuild format compatibility |
+| NFR-C4 | CLI shall work with solutions created by VS 2019/2022/2026 | MSBuild format compatibility |
 
 ### Usability
 

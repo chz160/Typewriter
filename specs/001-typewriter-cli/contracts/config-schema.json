@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/chz160/Typewriter/schemas/typewriter-config.json",
+  "title": "Typewriter CLI Configuration",
+  "description": "Configuration schema for .typewriterrc and typewriter.json files",
+  "type": "object",
+  "properties": {
+    "solution": {
+      "type": "string",
+      "description": "Relative path to the solution file (.sln). Mutually exclusive with 'project'.",
+      "examples": ["./MyProject.sln", "../Solutions/Backend.sln"]
+    },
+    "project": {
+      "type": "string",
+      "description": "Relative path to the project file (.csproj). Mutually exclusive with 'solution'.",
+      "examples": ["./Api/Api.csproj", "../Projects/Core.csproj"]
+    },
+    "templates": {
+      "type": "array",
+      "description": "Glob patterns for template files to include.",
+      "items": {
+        "type": "string"
+      },
+      "default": ["**/*.tst"],
+      "examples": [["**/*.tst"], ["Templates/**/*.tst", "Api/**/*.tst"]]
+    },
+    "exclude": {
+      "type": "array",
+      "description": "Glob patterns for files/directories to exclude.",
+      "items": {
+        "type": "string"
+      },
+      "default": ["**/obj/**", "**/bin/**"],
+      "examples": [["**/obj/**", "**/bin/**", "**/node_modules/**"]]
+    },
+    "verbosity": {
+      "type": "string",
+      "description": "Output verbosity level.",
+      "enum": ["quiet", "normal", "verbose"],
+      "default": "normal"
+    }
+  },
+  "oneOf": [
+    {
+      "required": ["solution"],
+      "not": { "required": ["project"] }
+    },
+    {
+      "required": ["project"],
+      "not": { "required": ["solution"] }
+    },
+    {
+      "not": {
+        "anyOf": [
+          { "required": ["solution"] },
+          { "required": ["project"] }
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "solution": "./MyProject.sln",
+      "templates": ["**/*.tst"],
+      "exclude": ["**/obj/**", "**/bin/**"],
+      "verbosity": "normal"
+    },
+    {
+      "project": "./Api/Api.csproj",
+      "templates": ["Api/**/*.tst"],
+      "verbosity": "verbose"
+    }
+  ]
+}
