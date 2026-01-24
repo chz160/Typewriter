@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Typewriter.CLI</RootNamespace>
+    <AssemblyName>typewriter</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Description>Command-line interface for Typewriter - generate TypeScript from C# without Visual Studio</Description>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>false</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Typewriter\Properties\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
+    <!-- Link Implementation classes from the main Typewriter project (no VS dependencies) -->
+    <Compile Include="..\Typewriter\CodeModel\Implementation\*.cs" Link="CodeModel\LinkedImplementation\%(Filename)%(Extension)" />
+    <Compile Include="..\Typewriter\CodeModel\Collections\*.cs" Link="CodeModel\LinkedCollections\%(Filename)%(Extension)" />
+    <Compile Include="..\Typewriter\CodeModel\Helpers.cs" Link="CodeModel\Helpers.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Typewriter.Core.csproj" />
+    <ProjectReference Include="..\CodeModel\Typewriter.CodeModel.csproj" />
+    <ProjectReference Include="..\Metadata\Typewriter.Metadata.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="Buildalyzer" Version="7.1.0" />
+    <PackageReference Include="Buildalyzer.Workspaces" Version="7.1.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

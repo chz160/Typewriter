@@ -48,10 +48,22 @@ The PRD defines 39 functional requirements spanning:
 ### Technical Constraints & Dependencies
 
 **Hard Constraints:**
-1. **.NET Framework 4.7.2** - Must match existing codebase for assembly compatibility
-2. **Output Parity** - Byte-identical TypeScript generation required
-3. **Zero VS Dependencies** - CLI execution path must not require Visual Studio
-4. **Generic Naming** - Avoid build-system-specific naming (per PRD future-proofing guidance)
+1. **Multi-Target Architecture** - Solution must support both .NET Framework 4.7.2 (VS extension) and .NET 8 (CLI)
+2. **.NET Standard 2.0 Shared Library** - New `Typewriter.Core` project enables code sharing between legacy VS extension and modern CLI
+3. **Output Parity** - Byte-identical TypeScript generation required
+4. **Zero VS Dependencies** - CLI execution path must not require Visual Studio
+5. **Generic Naming** - Avoid build-system-specific naming (per PRD future-proofing guidance)
+6. **DRY Principle** - Maximum code reuse via shared library extraction
+
+**Framework Strategy:**
+| Project | Target Framework | Status | Rationale |
+|---------|-----------------|--------|-----------|
+| Typewriter (VS Extension) | .NET Framework 4.7.2 | Unchanged | VS extension requirement |
+| Typewriter.CodeModel | .NET Standard 2.0 | **COMPLETED** | Retargeted - consumable by net472 and net8.0 |
+| Typewriter.Metadata | .NET Standard 2.0 | **COMPLETED** | Retargeted - consumable by net472 and net8.0 |
+| Typewriter.Metadata.Roslyn | .NET Framework 4.7.2 | Unchanged | VS-specific Roslyn workspace (cannot migrate) |
+| **Typewriter.Core (NEW)** | .NET Standard 2.0 | Planned | Shared generation engine extraction |
+| **Typewriter.CLI (NEW)** | .NET 8 | Planned | Modern runtime, cross-platform ready |
 
 **Dependencies:**
 - Existing assemblies: `Typewriter.CodeModel`, `Typewriter.Metadata`, `Typewriter.Metadata.Roslyn`
@@ -60,11 +72,13 @@ The PRD defines 39 functional requirements spanning:
 
 ### Cross-Cutting Concerns Identified
 
-1. **Workspace Abstraction** - Replace `VisualStudioWorkspace` with standalone implementation while preserving `IMetadataProvider` contract
-2. **Error Handling Strategy** - Consistent error/warning distinction across all components with file:line:column formatting
-3. **Configuration Resolution** - CLI args > config file > defaults precedence across all operations
-4. **Logging Abstraction** - Console output replacing VS Output Window, with verbosity levels
-5. **Path Resolution** - Relative path handling without DTE project enumeration
+1. **Shared Library Extraction** - Identify and extract VS-independent code to `Typewriter.Core` (netstandard2.0) for maximum reuse
+2. **Workspace Abstraction** - Replace `VisualStudioWorkspace` with standalone implementation while preserving `IMetadataProvider` contract
+3. **Error Handling Strategy** - Consistent error/warning distinction across all components with file:line:column formatting
+4. **Configuration Resolution** - CLI args > config file > defaults precedence across all operations
+5. **Logging Abstraction** - Console output replacing VS Output Window, with verbosity levels
+6. **Path Resolution** - Relative path handling without DTE project enumeration
+7. **Multi-Target Compatibility** - Ensure shared code compiles against netstandard2.0 APIs only
 
 ## Starter Template Evaluation
 
@@ -78,29 +92,34 @@ This is a **brownfield extension project**, not a greenfield starter template sc
 
 | Approach | Description | Fit |
 |----------|-------------|-----|
-| Existing Codebase | Add new CLI project to existing solution | **Selected** |
+| Existing Codebase + Shared Core | Add CLI project + extract shared code to netstandard2.0 library | **Selected** |
 | Fork & Refactor | Create separate CLI-only fork | Rejected - duplicates code |
-| Shared Library Extract | Extract shared code to separate package | Overkill for scope |
+| Shared NuGet Package | Extract shared code to external NuGet package | Rejected - unnecessary distribution complexity |
 
-### Selected Approach: New Project in Existing Solution
+### Selected Approach: Multi-Project Architecture with Shared Core
 
 **Rationale:**
-- Maximizes code reuse (>90% of generation logic)
+- Maximizes code reuse (>90% of generation logic) via shared `Typewriter.Core`
 - Single solution maintains consistency
-- Shared test infrastructure
-- Aligned with PRD requirement for minimal existing changes
+- netstandard2.0 bridges .NET Framework 4.7.2 and .NET 8
+- Future-proofs for eventual full .NET migration
+- Aligned with PRD requirement for minimal existing changes while enabling DRY principles
 
 **Initialization:**
 ```bash
-# Add new console application to existing solution
-dotnet new console -n Typewriter.CLI -f net472 -o src/CLI
+# Create shared core library targeting netstandard2.0
+dotnet new classlib -n Typewriter.Core -f netstandard2.0 -o src/Core
+dotnet sln Typewriter.sln add src/Core/Typewriter.Core.csproj
+
+# Add new console application targeting .NET 8
+dotnet new console -n Typewriter.CLI -f net8.0 -o src/CLI
 dotnet sln Typewriter.sln add src/CLI/Typewriter.CLI.csproj
 ```
 
 ### Architectural Decisions Inherited from Existing Codebase
 
 **Language & Runtime:**
-- C# with .NET Framework 4.7.2
+- C# with multi-target support (.NET Framework 4.7.2, .NET Standard 2.0, .NET 8)
 - Same Roslyn version (4.14.0) as VS extension
 
 **Code Organization:**
@@ -284,27 +303,80 @@ Typewriter/
 └── docs/
 ```
 
-**New CLI Project Structure:**
+**New Typewriter.Core Project Structure (.NET Standard 2.0):**
+```
+src/Core/                           # NEW - Typewriter.Core shared library
+├── Typewriter.Core.csproj          # Target: netstandard2.0
+├── CodeModel/
+│   ├── Interfaces/                 # Extracted from Typewriter.CodeModel
+│   │   ├── IClass.cs
+│   │   ├── IProperty.cs
+│   │   ├── IMethod.cs
+│   │   ├── IType.cs
+│   │   └── ...                     # All code model interfaces
+│   └── Extensions/                 # Type extension helpers
+│       └── TypeExtensions.cs
+├── Metadata/
+│   ├── IMetadataProvider.cs        # Core provider contract
+│   ├── IClassMetadata.cs
+│   ├── IPropertyMetadata.cs
+│   └── ...                         # All metadata interfaces
+├── Generation/
+│   ├── Parser.cs                   # Template parser (extracted)
+│   ├── TemplateCodeParser.cs       # Code block parser (extracted)
+│   ├── Compiler.cs                 # Template compiler (extracted)
+│   ├── ItemFilter.cs               # Filter logic (extracted)
+│   └── Template.cs                 # Core template logic (extracted)
+└── Utilities/
+    ├── PathUtilities.cs            # Path resolution helpers
+    └── StringExtensions.cs         # Common string helpers
+```
+
+**Code Extraction Strategy for Typewriter.Core:**
+
+| Source Project | Components to Extract | Extraction Notes |
+|----------------|----------------------|------------------|
+| Typewriter.CodeModel | All interfaces (`IClass`, `IProperty`, etc.) | Move to Core/CodeModel/Interfaces |
+| Typewriter.CodeModel | Type extensions | Move to Core/CodeModel/Extensions |
+| Typewriter.Metadata | All metadata interfaces | Move to Core/Metadata |
+| Typewriter | Parser, Compiler, TemplateCodeParser | Remove VS dependencies first |
+| Typewriter | ItemFilter | Already VS-independent |
+
+**What Stays in Existing Projects:**
+- `Typewriter.Metadata.Roslyn` - VS-specific Roslyn workspace integration
+- `Typewriter/CodeModel/Implementation/*` - VS-specific `*Impl.cs` classes
+- `Typewriter/VisualStudio/*` - All VS integration code
+- `Typewriter/TemplateEditor/*` - VS editor features
+
+**New CLI Project Structure (.NET 8):**
 ```
 src/CLI/                            # NEW - Typewriter.CLI project
-├── Typewriter.CLI.csproj
+├── Typewriter.CLI.csproj           # Target: net8.0
 ├── Program.cs                      # Entry point, System.CommandLine setup
 ├── Commands/
 │   └── GenerateCommand.cs          # Main generate command
 ├── Infrastructure/
 │   ├── CliMetadataProvider.cs      # IMetadataProvider implementation
+│   ├── CliRoslynWorkspace.cs       # Standalone Roslyn workspace
 │   ├── ConsoleOutput.cs            # ANSI-colored console output
 │   ├── TemplateFinder.cs           # .tst file discovery
 │   └── PathResolver.cs             # Relative path resolution
 ├── Configuration/
 │   └── CliSettings.cs              # Configuration model (Growth phase)
-└── Properties/
-    └── AssemblyInfo.cs
+└── CodeModel/
+    └── Implementation/             # CLI-specific *Impl.cs classes
+        ├── CliClassImpl.cs
+        ├── CliPropertyImpl.cs
+        └── ...                     # Mirroring VS extension pattern
 ```
 
 **Test Additions:**
 ```
 src/Tests/
+├── Core/                           # NEW - Core library tests
+│   ├── ParserTests.cs
+│   ├── CompilerTests.cs
+│   └── TemplateTests.cs
 ├── CLI/                            # NEW - CLI test subfolder
 │   ├── GenerateCommandTests.cs
 │   ├── CliMetadataProviderTests.cs
@@ -315,45 +387,81 @@ src/Tests/
 
 ### Architectural Boundaries
 
-**Assembly Dependencies:**
+**Assembly Dependencies - Multi-Target Architecture:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Typewriter.CLI                            │
-│  (NEW - Console Application)                                 │
-├─────────────────────────────────────────────────────────────┤
-│  References:                                                 │
-│  ├── Typewriter.CodeModel         (existing, unchanged)      │
-│  ├── Typewriter.Metadata          (existing, unchanged)      │
-│  ├── Typewriter.Metadata.Roslyn   (existing, unchanged)      │
-│  ├── System.CommandLine           (new dependency)           │
-│  ├── Newtonsoft.Json              (likely existing)          │
-│  └── Buildalyzer                  (existing submodule)       │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                         Typewriter.Core                                    │
+│                    (NEW - .NET Standard 2.0)                               │
+│  Shared between VS Extension and CLI                                       │
+├───────────────────────────────────────────────────────────────────────────┤
+│  Contains:                                                                 │
+│  ├── CodeModel Interfaces (IClass, IProperty, IMethod, etc.)              │
+│  ├── Metadata Interfaces (IClassMetadata, IPropertyMetadata, etc.)        │
+│  ├── Template Engine (Parser, Compiler, TemplateCodeParser)               │
+│  └── Common Utilities                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+                    ▲                               ▲
+                    │                               │
+┌───────────────────┴───────────────┐ ┌────────────┴────────────────────────┐
+│     Typewriter (VS Extension)      │ │         Typewriter.CLI              │
+│     (.NET Framework 4.7.2)         │ │         (.NET 8)                    │
+├────────────────────────────────────┤ ├─────────────────────────────────────┤
+│  References:                       │ │  References:                        │
+│  ├── Typewriter.Core               │ │  ├── Typewriter.Core                │
+│  ├── Typewriter.Metadata.Roslyn    │ │  ├── System.CommandLine             │
+│  ├── VS SDK assemblies             │ │  ├── Newtonsoft.Json                │
+│  └── EnvDTE                        │ │  └── Buildalyzer                    │
+├────────────────────────────────────┤ ├─────────────────────────────────────┤
+│  Contains:                         │ │  Contains:                          │
+│  ├── VS-specific *Impl.cs classes  │ │  ├── CLI-specific *Impl.cs classes  │
+│  ├── VisualStudio integration      │ │  ├── CliMetadataProvider            │
+│  ├── TemplateEditor features       │ │  ├── CliRoslynWorkspace             │
+│  └── RoslynMetadataProvider        │ │  └── ConsoleOutput                  │
+└────────────────────────────────────┘ └─────────────────────────────────────┘
 ```
 
-**Provider Boundary:**
+**Provider Boundary with Shared Core:**
 ```
-┌─────────────────────────┐     ┌─────────────────────────┐
-│   VS Extension          │     │   CLI                    │
-│   (Typewriter.dll)      │     │   (Typewriter.CLI.exe)   │
-├─────────────────────────┤     ├─────────────────────────┤
-│ RoslynMetadataProvider  │     │ CliMetadataProvider      │
-│ └─VisualStudioWorkspace │     │ └─AdhocWorkspace         │
-└──────────┬──────────────┘     └──────────┬──────────────┘
-           │                               │
-           └───────────┬───────────────────┘
-                       ▼
-           ┌─────────────────────────┐
-           │  IMetadataProvider      │
-           │  (shared contract)      │
-           └─────────────────────────┘
-                       │
-                       ▼
-           ┌─────────────────────────┐
-           │  Template Engine        │
-           │  (Parser, Compiler)     │
-           │  100% shared            │
-           └─────────────────────────┘
+┌─────────────────────────────┐     ┌─────────────────────────────┐
+│   VS Extension              │     │   CLI                        │
+│   (.NET Framework 4.7.2)    │     │   (.NET 8)                   │
+├─────────────────────────────┤     ├─────────────────────────────┤
+│ RoslynMetadataProvider      │     │ CliMetadataProvider          │
+│ └─VisualStudioWorkspace     │     │ └─Buildalyzer+AdhocWorkspace │
+└──────────┬──────────────────┘     └──────────┬──────────────────┘
+           │                                   │
+           └─────────────┬─────────────────────┘
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Typewriter.Core                              │
+│                   (.NET Standard 2.0)                            │
+├─────────────────────────────────────────────────────────────────┤
+│           ┌─────────────────────────┐                            │
+│           │  IMetadataProvider      │                            │
+│           │  (shared contract)      │                            │
+│           └──────────┬──────────────┘                            │
+│                      │                                           │
+│                      ▼                                           │
+│           ┌─────────────────────────┐                            │
+│           │  Template Engine        │                            │
+│           │  (Parser, Compiler)     │                            │
+│           │  100% shared code       │                            │
+│           └─────────────────────────┘                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Framework Compatibility Matrix:**
+```
+┌────────────────────────────┬──────────────────────┬─────────────────┬───────────┐
+│       Assembly             │   Target Framework   │   Consumers     │  Status   │
+├────────────────────────────┼──────────────────────┼─────────────────┼───────────┤
+│ Typewriter.CodeModel       │ .NET Standard 2.0    │ VS Ext + CLI    │ DONE      │
+│ Typewriter.Metadata        │ .NET Standard 2.0    │ VS Ext + CLI    │ DONE      │
+│ Typewriter.Metadata.Roslyn │ .NET Framework 4.7.2 │ VS Extension    │ Unchanged │
+│ Typewriter (VS Extension)  │ .NET Framework 4.7.2 │ Visual Studio   │ Unchanged │
+│ Typewriter.Core (NEW)      │ .NET Standard 2.0    │ VS Ext + CLI    │ Planned   │
+│ Typewriter.CLI (NEW)       │ .NET 8               │ Command Line    │ Planned   │
+└────────────────────────────┴──────────────────────┴─────────────────┴───────────┘
 ```
 
 ### Requirements to Structure Mapping
@@ -362,7 +470,7 @@ src/Tests/
 
 | Requirement | Implementation Location |
 |-------------|------------------------|
-| FR1-7: Code Generation | Reuse existing `Typewriter/Generation/` |
+| FR1-7: Code Generation | `Core/Generation/` (shared template engine) |
 | FR8-12: Project Discovery | `CLI/Infrastructure/TemplateFinder.cs` |
 | FR13-19: Output & Diagnostics | `CLI/Infrastructure/ConsoleOutput.cs` |
 | FR20-24: CLI Arguments | `CLI/Commands/GenerateCommand.cs` |
@@ -375,85 +483,134 @@ src/Tests/
 | Config file support | `CLI/Configuration/CliSettings.cs` |
 | Verbosity flags | `CLI/Commands/GenerateCommand.cs` |
 
+**Shared Core Components (DRY):**
+
+| Component | Source Location | Core Location | Consumers |
+|-----------|-----------------|---------------|-----------|
+| Code Model Interfaces | `CodeModel/*.cs` | `Core/CodeModel/Interfaces/` | VS + CLI |
+| Metadata Interfaces | `Metadata/*.cs` | `Core/Metadata/` | VS + CLI |
+| Template Parser | `Typewriter/Generation/Parser.cs` | `Core/Generation/Parser.cs` | VS + CLI |
+| Template Compiler | `Typewriter/Generation/Compiler.cs` | `Core/Generation/Compiler.cs` | VS + CLI |
+| Item Filter | `Typewriter/Generation/ItemFilter.cs` | `Core/Generation/ItemFilter.cs` | VS + CLI |
+
 ### Integration Points
 
 **Internal Communication:**
-- `GenerateCommand` → `CliMetadataProvider` → `IMetadataProvider` contract
+- `GenerateCommand` → `CliMetadataProvider` → `IMetadataProvider` contract (from Core)
 - `CliMetadataProvider` → Buildalyzer → AdhocWorkspace → Solution/Project loading
-- `CliMetadataProvider` → existing `RoslynFileMetadata`, `RoslynClassMetadata`, etc.
-- Template engine receives `IFileMetadata` and produces TypeScript (unchanged)
+- `CliMetadataProvider` → CLI-specific `*Impl.cs` classes implementing Core interfaces
+- Template engine (from Core) receives `IFileMetadata` and produces TypeScript
 
-**Data Flow:**
+**Data Flow with Shared Core:**
 ```
 CLI Args → GenerateCommand
               │
               ▼
-         TemplateFinder ─────► .tst files
+         TemplateFinder ─────────────────────► .tst files
               │
               ▼
-      CliMetadataProvider
+      CliMetadataProvider (CLI)
               │
          Buildalyzer
               │
               ▼
-        AdhocWorkspace ─────► .sln/.csproj
+        AdhocWorkspace ──────────────────────► .sln/.csproj
               │
               ▼
-      RoslynFileMetadata ────► C# source files
+      Cli*Impl classes (CLI) ────────────────► C# source files
               │
+              │ implements
               ▼
-        Template Engine
-              │
-              ▼
-      TypeScript Output ─────► .ts files
-              │
-              ▼
-       ConsoleOutput ────────► stdout/stderr
+┌─────────────────────────────────────────────────────────────┐
+│                     Typewriter.Core                          │
+│  ┌────────────────────┐    ┌────────────────────┐           │
+│  │ IMetadataProvider  │───►│ Template Engine    │           │
+│  │ IFileMetadata      │    │ (Parser, Compiler) │           │
+│  │ IClassMetadata     │    └─────────┬──────────┘           │
+│  └────────────────────┘              │                      │
+└──────────────────────────────────────┼──────────────────────┘
+                                       │
+                                       ▼
+                             TypeScript Output ──────────────► .ts files
+                                       │
+                                       ▼
+                              ConsoleOutput (CLI) ───────────► stdout/stderr
 ```
 
 ### File Organization Patterns
 
-**New Files Summary:**
+**New Files Summary - Typewriter.Core:**
 
 | File | Purpose | Lines (est.) |
 |------|---------|--------------|
-| `Program.cs` | Entry point, command setup | ~50 |
-| `GenerateCommand.cs` | Command definition & handler | ~150 |
-| `CliMetadataProvider.cs` | Workspace + provider | ~100 |
-| `ConsoleOutput.cs` | Colored output utilities | ~80 |
-| `TemplateFinder.cs` | .tst file discovery | ~60 |
-| `PathResolver.cs` | Path resolution utilities | ~40 |
-| `CliSettings.cs` | Configuration model | ~30 |
-| **Total new code** | | **~510 lines** |
+| `Typewriter.Core.csproj` | Project file | ~20 |
+| `CodeModel/Interfaces/*.cs` | Code model interfaces (extracted) | ~500 |
+| `Metadata/*.cs` | Metadata interfaces (extracted) | ~300 |
+| `Generation/Parser.cs` | Template parser (extracted) | ~200 |
+| `Generation/Compiler.cs` | Template compiler (extracted) | ~150 |
+| `Generation/TemplateCodeParser.cs` | Code block parser (extracted) | ~100 |
+| `Generation/ItemFilter.cs` | Filter logic (extracted) | ~50 |
+| `Utilities/*.cs` | Common helpers | ~100 |
+| **Core total (mostly extracted)** | | **~1420 lines** |
 
-**Reused from Existing:**
-- `Typewriter.CodeModel` - 100%
-- `Typewriter.Metadata` - 100%
-- `Typewriter.Metadata.Roslyn` - 100% (metadata classes)
-- `Typewriter/Generation/Parser.cs` - 100%
-- `Typewriter/Generation/TemplateCodeParser.cs` - 100%
-- `Typewriter/Generation/ItemFilter.cs` - 100%
-- `Typewriter/CodeModel/Implementation/*` - 100%
+**New Files Summary - Typewriter.CLI:**
+
+| File | Purpose | Lines (est.) |
+|------|---------|--------------|
+| `Typewriter.CLI.csproj` | Project file | ~30 |
+| `Program.cs` | Entry point, command setup | ~50 |
+| `Commands/GenerateCommand.cs` | Command definition & handler | ~150 |
+| `Infrastructure/CliMetadataProvider.cs` | Workspace + provider | ~100 |
+| `Infrastructure/CliRoslynWorkspace.cs` | Standalone Roslyn workspace | ~80 |
+| `Infrastructure/ConsoleOutput.cs` | Colored output utilities | ~80 |
+| `Infrastructure/TemplateFinder.cs` | .tst file discovery | ~60 |
+| `Infrastructure/PathResolver.cs` | Path resolution utilities | ~40 |
+| `Configuration/CliSettings.cs` | Configuration model | ~30 |
+| `CodeModel/Implementation/Cli*Impl.cs` | CLI-specific implementations | ~300 |
+| **CLI total (new code)** | | **~920 lines** |
+
+**Code Movement Strategy (DRY):**
+
+| Category | Action | Impact |
+|----------|--------|--------|
+| Interfaces | Extract to Core | ~800 lines moved, 0 new |
+| Template Engine | Extract to Core | ~500 lines moved, 0 new |
+| VS *Impl.cs | Stay in VS Extension | Unchanged |
+| CLI *Impl.cs | New in CLI | ~300 lines new |
+| CLI Infrastructure | New in CLI | ~620 lines new |
+
+**Reused via Shared Core:**
+- `Typewriter.Core/CodeModel/Interfaces/*` - 100% shared between VS + CLI
+- `Typewriter.Core/Metadata/*` - 100% shared between VS + CLI
+- `Typewriter.Core/Generation/*` - 100% shared between VS + CLI
 
 ## Architecture Validation Results
 
 ### Coherence Validation
 
-**Decision Compatibility:** All technology choices are compatible with .NET Framework 4.7.2:
-- System.CommandLine supports .NET Framework
-- Newtonsoft.Json is widely used in .NET Framework projects
-- Buildalyzer is designed for .NET Framework analysis
-- Roslyn 4.14.0 matches existing extension
+**Decision Compatibility:** All technology choices support the multi-target architecture:
+- .NET Standard 2.0 is compatible with both .NET Framework 4.7.2 and .NET 8
+- System.CommandLine supports .NET 8
+- Newtonsoft.Json supports both frameworks
+- Buildalyzer supports .NET 8 runtime
+- Roslyn 4.14.0 available for both targets
 
 **Pattern Consistency:** CLI patterns extend existing codebase conventions:
 - `CliMetadataProvider` follows `*Provider` naming
 - `GenerateCommand` follows established command patterns
 - Test organization co-located with existing tests
+- Core library extraction follows DRY principles
 
 **Structure Alignment:** Project structure follows existing solution patterns:
+- `src/Core/` provides shared foundation
 - `src/CLI/` mirrors `src/CodeModel/`, `src/Roslyn/` conventions
 - Single solution maintains build coherence
 - Shared test infrastructure preserved
+
+**Framework Strategy Validation:**
+- VS Extension stays on .NET Framework 4.7.2 (required for VS compatibility)
+- CLI uses .NET 8 (modern runtime, cross-platform ready)
+- Typewriter.Core bridges both via netstandard2.0
 
 ### Requirements Coverage Validation
 
@@ -472,14 +629,16 @@ CLI Args → GenerateCommand
 
 | NFR | Architectural Support |
 |-----|----------------------|
-| Performance (<3s cold start) | Minimal new code, reuse existing compiled assemblies |
-| Reliability (deterministic) | Same template engine guarantees identical output |
-| Maintainability (≥60% reuse) | ~90%+ code reuse achieved |
-| Compatibility (.NET 4.7.2) | Explicit constraint in all decisions |
+| Performance (<3s cold start) | .NET 8 CLI has faster startup than .NET Framework |
+| Reliability (deterministic) | Same template engine (Core) guarantees identical output |
+| Maintainability (≥60% reuse) | ~90%+ via shared Typewriter.Core library |
+| Compatibility (multi-target) | VS stays .NET 4.7.2, CLI uses .NET 8, Core bridges via netstandard2.0 |
+| Future-proofing | .NET 8 CLI ready for cross-platform expansion |
 
 ### Implementation Readiness Validation
 
 **Decision Completeness:** All critical decisions documented:
+- Multi-target framework strategy: Core (netstandard2.0), CLI (.NET 8), VS (.NET 4.7.2)
 - CLI argument parsing: System.CommandLine
 - Workspace provider: AdhocWorkspace + Buildalyzer
 - Configuration: Newtonsoft.Json
@@ -487,147 +646,270 @@ CLI Args → GenerateCommand
 - Exit codes: 0/1/2 per PRD
 
 **Structure Completeness:** Full project tree defined:
-- 7 new source files specified
-- Test subfolder defined
+- 2 new projects (Core + CLI) fully specified
+- Code extraction strategy defined for DRY compliance
+- Test subfolders defined for both Core and CLI
 - Integration boundaries clear
 
 **Pattern Completeness:** All conflict points addressed:
 - Naming conventions established
 - Error handling patterns defined
 - Console output patterns specified
+- Shared vs project-specific code boundaries clear
 
 ### Gap Analysis Results
 
 **Critical Gaps:** None - architecture is complete for MVP scope
 
 **Post-MVP Considerations:**
-- Watch mode requires file system monitoring architecture
-- NuGet packaging requires distribution decisions
-- Cross-platform may require .NET 6+ migration planning
+- Watch mode requires file system monitoring architecture (simpler with .NET 8)
+- NuGet packaging: CLI already .NET 8, ready for `dotnet tool` distribution
+- Cross-platform: .NET 8 CLI is already cross-platform capable
+- Future migration: VS extension could eventually target newer VS versions with .NET 6+
 
 ### Architecture Completeness Checklist
 
 **Requirements Analysis**
 - [x] Project context thoroughly analyzed
 - [x] Scale and complexity assessed (Low-Medium)
-- [x] Technical constraints identified (.NET 4.7.2, output parity)
-- [x] Cross-cutting concerns mapped (5 concerns)
+- [x] Technical constraints identified (multi-target: .NET 4.7.2, netstandard2.0, .NET 8)
+- [x] Cross-cutting concerns mapped (7 concerns including shared library extraction)
 
 **Architectural Decisions**
 - [x] Critical decisions documented with rationale
-- [x] Technology stack fully specified
-- [x] Integration patterns defined (IMetadataProvider)
-- [x] Performance considerations addressed
+- [x] Multi-target framework strategy fully specified
+- [x] Technology stack specified for each target framework
+- [x] Integration patterns defined (IMetadataProvider via Core)
+- [x] Performance considerations addressed (.NET 8 for CLI)
 
 **Implementation Patterns**
 - [x] Naming conventions established
 - [x] Structure patterns defined
 - [x] Communication patterns specified
 - [x] Process patterns documented (error handling)
+- [x] Code extraction strategy defined (DRY via Core)
 
 **Project Structure**
-- [x] Complete directory structure defined
-- [x] Component boundaries established
+- [x] Complete directory structure defined (Core + CLI)
+- [x] Component boundaries established (shared vs specific)
 - [x] Integration points mapped
 - [x] Requirements to structure mapping complete
+- [x] Framework compatibility matrix defined
 
 ### Architecture Readiness Assessment
 
 **Overall Status:** READY FOR IMPLEMENTATION
 
-**Confidence Level:** High - brownfield extension with clear boundaries
+**Confidence Level:** High - brownfield extension with clear boundaries and future-proof design
 
 **Key Strengths:**
-- Massive code reuse (~90%+) minimizes risk
+- Multi-target architecture enables gradual modernization
+- Massive code reuse (~90%+) via Typewriter.Core minimizes risk
+- .NET 8 CLI is cross-platform ready from day one
 - Clear provider pattern boundary enables clean separation
 - Existing test infrastructure reusable
 - Official Microsoft dependencies improve PR acceptance
+- DRY compliance via shared library extraction
 
 **Areas for Future Enhancement:**
-- Watch mode architecture (Growth phase)
-- NuGet distribution packaging
+- Watch mode architecture (simpler with .NET 8)
+- NuGet tool distribution (`dotnet tool install`)
 - Performance profiling integration
+- Eventual VS extension migration to newer .NET versions
 
 ### Implementation Handoff
 
 **AI Agent Guidelines:**
 - Follow all architectural decisions exactly as documented
 - Use implementation patterns consistently across all components
-- Respect project structure and boundaries
-- Use `ConsoleOutput` for all user-facing messages
+- Respect project structure and boundaries (Core vs CLI vs VS)
+- Extract shared code to Core before creating CLI-specific implementations
+- Use `ConsoleOutput` for all user-facing messages (CLI only)
 - Follow compiler-style error format
+- Maintain netstandard2.0 compatibility for all Core code
 
-**First Implementation Priority:**
-1. Create `src/CLI/Typewriter.CLI.csproj` with references
-2. Implement `ConsoleOutput` utility class
-3. Implement `CliMetadataProvider`
-4. Wire up `GenerateCommand` with System.CommandLine
-5. Add CLI tests in `src/Tests/CLI/`
+**First Implementation Priority - Phase 1 (Typewriter.Core):**
+1. Create `src/Core/Typewriter.Core.csproj` targeting netstandard2.0
+2. Extract code model interfaces from `Typewriter.CodeModel`
+3. Extract metadata interfaces from `Typewriter.Metadata`
+4. Extract template engine (Parser, Compiler, TemplateCodeParser) from `Typewriter`
+5. Update existing projects to reference `Typewriter.Core`
+6. Add Core tests in `src/Tests/Core/`
+
+**Second Implementation Priority - Phase 2 (Typewriter.CLI):**
+1. Create `src/CLI/Typewriter.CLI.csproj` targeting net8.0
+2. Reference `Typewriter.Core`
+3. Implement `ConsoleOutput` utility class
+4. Implement `CliMetadataProvider` and `CliRoslynWorkspace`
+5. Implement CLI-specific `*Impl.cs` classes
+6. Wire up `GenerateCommand` with System.CommandLine
+7. Add CLI tests in `src/Tests/CLI/`
+
+## Implementation Progress
+
+### Completed Work
+
+**Phase 0 - Foundation Retargeting (COMPLETED 2026-01-11):**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Retarget `Typewriter.CodeModel` to netstandard2.0 | **DONE** | SDK-style project, builds successfully |
+| Retarget `Typewriter.Metadata` to netstandard2.0 | **DONE** | SDK-style project, references CodeModel |
+| Verify `Typewriter.Metadata.Roslyn` builds | **DONE** | net472, references netstandard2.0 assemblies |
+| Verify `Typewriter` VS extension builds | **DONE** | net472, VSIX package produced |
+| Verify solution builds end-to-end | **DONE** | All projects compile successfully |
+
+**Project File Changes:**
+- `src/CodeModel/Typewriter.CodeModel.csproj` - Converted to SDK-style, targets `netstandard2.0`
+- `src/Metadata/Typewriter.Metadata.csproj` - Converted to SDK-style, targets `netstandard2.0`
+
+Both projects use `SharedAssemblyInfo.cs` for version consistency and generate XML documentation.
+
+### Remaining Work
+
+**Phase 1 - Typewriter.Core (NOT STARTED):**
+- Create `src/Core/Typewriter.Core.csproj` targeting netstandard2.0
+- Extract generation engine (Parser, Compiler, TemplateCodeParser, ItemFilter)
+- Create abstraction interfaces (IPathResolver, IErrorReporter)
+- Update VS extension to reference Core
+
+**Phase 2 - Typewriter.CLI (NOT STARTED):**
+- Create `src/CLI/Typewriter.CLI.csproj` targeting net8.0
+- Implement CLI infrastructure
+- Implement CliMetadataProvider using Buildalyzer
+- Wire up GenerateCommand with System.CommandLine
+
+## Known Issues
+
+### Existing Test Suite Failures
+
+**Issue:** The existing test suite (`Typewriter.Tests`) fails when run outside of Visual Studio.
+
+**Error:**
+```
+System.Runtime.InteropServices.COMException : SolutionDirectory must be called on the UI thread.
+   at Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread(String callerMemberName)
+   at Typewriter.Tests.TestInfrastructure.TestBase.get_SolutionDirectory()
+```
+
+**Root Cause:** The tests require VS SDK mocked infrastructure (`MefHostingFixture`, `DTE`, `ThreadHelper`) that needs to run in a VS experimental instance or with special test host configuration. This is **NOT related to the netstandard2.0 retargeting** - it's a pre-existing architectural constraint of the test suite.
+
+**Impact:** 199 of 203 tests fail with UI thread errors when run via `vstest.console.exe` or `dotnet test`.
+
+**Recommendation for Developers:**
+- Do not spend time trying to fix these test failures - they are infrastructure-related, not code defects
+- Tests that need VS infrastructure should be run within Visual Studio's test runner
+- New CLI tests should be written to be VS-independent (no `MefHostingFixture`, no `DTE` dependencies)
+- Consider creating a separate test category for VS-dependent vs VS-independent tests in the future
+
+### Projects That Cannot Be Retargeted
+
+The following projects have been analyzed and **cannot** be retargeted to netstandard2.0:
+
+| Project | Reason |
+|---------|--------|
+| `Typewriter.Metadata.Roslyn` | Hard dependencies on VS SDK (`ThreadHelper`, `ServiceProvider`, `VisualStudioWorkspace`) |
+| `Typewriter.ItemTemplates` | VS-specific VSIX component, not a portable library |
+| `Typewriter` (VS Extension) | VS extension must target net472 for VS compatibility |
 
 ## Architecture Completion Summary
 
 ### Workflow Completion
 
-**Architecture Decision Workflow:** COMPLETED
+**Architecture Decision Workflow:** COMPLETED (Updated for Multi-Target)
 **Total Steps Completed:** 8
 **Date Completed:** 2026-01-10
+**Last Updated:** 2026-01-11 (Multi-target architecture revision)
 **Document Location:** `_bmad-output/planning-artifacts/architecture.md`
 
 ### Final Architecture Deliverables
 
 **Complete Architecture Document**
+- Multi-target framework strategy documented (.NET 4.7.2 + netstandard2.0 + .NET 8)
 - All architectural decisions documented with specific versions
 - Implementation patterns ensuring AI agent consistency
-- Complete project structure with all files and directories
+- Complete project structure for both Core and CLI projects
+- Code extraction strategy for DRY compliance
 - Requirements to architecture mapping
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 5 core architectural decisions made
+- 2 new projects defined (Typewriter.Core + Typewriter.CLI)
+- 7 core architectural decisions made (including framework strategy)
 - 11 implementation patterns defined (6 inherited + 5 CLI-specific)
-- 7 new source files specified
+- Code extraction strategy for ~1300 lines of shared code
+- ~920 lines of new CLI-specific code
 - 39 functional requirements fully supported
 
 **AI Agent Implementation Guide**
-- Technology stack with verified versions
+- Multi-target technology stack with verified versions
 - Consistency rules that prevent implementation conflicts
-- Project structure with clear boundaries
+- Project structure with clear boundaries (Core vs CLI vs VS)
 - Integration patterns and communication standards
+- DRY compliance guidelines
 
 ### Development Sequence
 
-1. Initialize `src/CLI/Typewriter.CLI.csproj` with project references
-2. Set up assembly references to existing projects
-3. Implement infrastructure components (`ConsoleOutput`, `CliMetadataProvider`)
-4. Build command structure with System.CommandLine
-5. Wire template engine integration via `IMetadataProvider`
-6. Add tests in `src/Tests/CLI/`
+**Phase 1 - Typewriter.Core (netstandard2.0):**
+1. Create `src/Core/Typewriter.Core.csproj` targeting netstandard2.0
+2. Extract interfaces from `Typewriter.CodeModel` and `Typewriter.Metadata`
+3. Extract template engine from `Typewriter/Generation/`
+4. Update existing VS extension to reference Core
+5. Verify all existing tests pass with new structure
+6. Add Core-specific tests in `src/Tests/Core/`
+
+**Phase 2 - Typewriter.CLI (.NET 8):**
+1. Create `src/CLI/Typewriter.CLI.csproj` targeting net8.0
+2. Reference `Typewriter.Core`
+3. Implement CLI infrastructure (`ConsoleOutput`, `CliRoslynWorkspace`)
+4. Implement `CliMetadataProvider` using Buildalyzer + AdhocWorkspace
+5. Implement CLI-specific `*Impl.cs` classes
+6. Build command structure with System.CommandLine
+7. Add CLI tests in `src/Tests/CLI/`
+8. Verify output parity with VS extension
 
 ### Quality Assurance Checklist
 
 **Architecture Coherence**
 - [x] All decisions work together without conflicts
-- [x] Technology choices are compatible (.NET 4.7.2)
+- [x] Multi-target technology choices are compatible (netstandard2.0 bridges .NET 4.7.2 and .NET 8)
 - [x] Patterns support the architectural decisions
 - [x] Structure aligns with existing solution
+- [x] DRY principle enforced via shared Core library
 
 **Requirements Coverage**
 - [x] All functional requirements are supported
 - [x] All non-functional requirements are addressed
-- [x] Cross-cutting concerns are handled
+- [x] Cross-cutting concerns are handled (7 concerns)
 - [x] Integration points are defined
+- [x] Future-proofing achieved via modern CLI framework
 
 **Implementation Readiness**
 - [x] Decisions are specific and actionable
 - [x] Patterns prevent agent conflicts
 - [x] Structure is complete and unambiguous
 - [x] Examples are provided for clarity
+- [x] Code extraction strategy is clear
+- [x] Two-phase development sequence defined
 
 ---
 
-**Architecture Status:** READY FOR IMPLEMENTATION
+**Architecture Status:** IMPLEMENTATION IN PROGRESS
 
-**Next Phase:** Begin implementation using the architectural decisions and patterns documented herein.
+**Completed:** Phase 0 (Foundation Retargeting) - CodeModel and Metadata now target netstandard2.0
+
+**Next Phase:** Phase 1 (Typewriter.Core creation and generation engine extraction)
 
 **Document Maintenance:** Update this architecture when major technical decisions are made during implementation.
+
+---
+
+## Revision History
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2026-01-10 | Initial architecture document | Noah + Winston |
+| 2026-01-11 | Updated for multi-target architecture (.NET 8 CLI + netstandard2.0 Core) | Noah + Winston |
+| 2026-01-11 | Completed Phase 0: Retargeted CodeModel and Metadata to netstandard2.0 | Noah |
+| 2026-01-11 | Added Implementation Progress and Known Issues sections | Noah + Winston |
 
