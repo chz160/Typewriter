@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- This Import references a file that doesn't exist and has no Condition -->
+  <!-- Our fast parser will fail because it can't evaluate the Import -->
+  <Import Project="..\..\..\..\NonExistentDirectory\DoesNotExist.targets" />
+</Project>

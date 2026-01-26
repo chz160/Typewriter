@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Typewriter.CLI.Configuration;
 using Typewriter.CLI.Infrastructure;
@@ -25,6 +26,7 @@ public class CliTemplate
     private Lazy<CliSettings> _configuration;
     private bool _templateCompileException;
     private bool _templateCompiled;
+    private object? _templateInstance;
 
     /// <summary>
     /// Gets the template settings.
@@ -45,6 +47,19 @@ public class CliTemplate
     /// Gets whether a compile exception occurred.
     /// </summary>
     public bool HasCompileException => _templateCompileException;
+
+    /// <summary>
+    /// Gets the compiled template instance for invoking custom methods.
+    /// </summary>
+    public object? TemplateInstance
+    {
+        get
+        {
+            // Ensure configuration is initialized, which creates the instance
+            _ = _configuration.Value;
+            return _templateInstance;
+        }
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CliTemplate"/> class.
@@ -81,18 +96,54 @@ public class CliTemplate
             }
 
             // If template has a custom class with Settings constructor, invoke it
+            // Note: The constructor may be non-public (no access modifier defaults to private in C#)
             var templateClass = _customExtensions.FirstOrDefault();
-            if (templateClass?.GetConstructor(new[] { typeof(Settings) }) != null)
+            if (templateClass == null)
             {
-                try
+                // No custom template code - this is OK, just means no OutputFilenameFactory
+            }
+            else
+            {
+                // Look for constructor with Settings parameter, including non-public constructors
+                var ctor = templateClass.GetConstructor(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(Settings) },
+                    null);
+
+                if (ctor != null)
                 {
-                    Activator.CreateInstance(templateClass, settings);
+                    try
+                    {
+                        // Create and store the template instance for later use in method invocations
+                        _templateInstance = ctor.Invoke(new object[] { settings });
+                    }
+                    catch (Exception ex)
+                    {
+                        var innerMessage = ex.InnerException?.Message ?? ex.Message;
+                        _errorReporter.ReportWarning(
+                            $"Failed to invoke template settings constructor: {innerMessage}",
+                            _templatePath);
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _errorReporter.ReportWarning(
-                        $"Failed to invoke template settings constructor: {ex.Message}",
-                        _templatePath);
+                    // Try parameterless constructor
+                    var defaultCtor = templateClass.GetConstructor(
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                        null, Type.EmptyTypes, null);
+
+                    if (defaultCtor != null)
+                    {
+                        try
+                        {
+                            _templateInstance = defaultCtor.Invoke(Array.Empty<object>());
+                        }
+                        catch
+                        {
+                            // Ignore - instance methods won't work without instance
+                        }
+                    }
                 }
             }
 
@@ -175,7 +226,7 @@ public class CliTemplate
     {
         try
         {
-            return CliParser.Parse(_templatePath, file.FullName, _template.Value, _customExtensions, file, _errorReporter, out success);
+            return CliParser.Parse(_templatePath, file.FullName, _template.Value, _customExtensions, TemplateInstance, file, _errorReporter, out success);
         }
         catch (Exception ex)
         {
@@ -195,7 +246,7 @@ public class CliTemplate
     {
         try
         {
-            return CliSingleFileParser.Parse(_templatePath, files, _template.Value, _customExtensions, _errorReporter, out success);
+            return CliSingleFileParser.Parse(_templatePath, files, _template.Value, _customExtensions, TemplateInstance, _errorReporter, out success);
         }
         catch (Exception ex)
         {

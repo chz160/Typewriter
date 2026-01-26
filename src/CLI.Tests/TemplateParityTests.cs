@@ -324,6 +324,7 @@ export interface $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -354,6 +355,7 @@ export interface $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -393,6 +395,7 @@ export interface $Name {}
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -427,6 +430,7 @@ export interface $Name {}
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -460,6 +464,7 @@ export enum $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -494,6 +499,7 @@ export interface $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -529,6 +535,7 @@ export $IsAbstract[abstract ][concrete ]class $Name {}
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -556,6 +563,7 @@ export $IsAbstract[abstract ][concrete ]class $Name {}
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -600,6 +608,7 @@ export class $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -633,6 +642,7 @@ export interface $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);
@@ -683,6 +693,7 @@ export interface $Name {
             file.FullName,
             template,
             new List<Type>(),
+            null, // templateInstance
             file,
             errorReporter,
             out var success);

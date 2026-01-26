@@ -20,6 +20,7 @@ public class CliSingleFileParser
     /// <param name="files">The files to process.</param>
     /// <param name="template">The template string to parse.</param>
     /// <param name="extensions">The list of extension types for custom methods.</param>
+    /// <param name="templateInstance">The compiled template instance for invoking custom methods.</param>
     /// <param name="errorReporter">The error reporter for logging.</param>
     /// <param name="success">Output parameter indicating whether parsing succeeded.</param>
     /// <returns>The rendered output, or null if no match was found.</returns>
@@ -28,10 +29,11 @@ public class CliSingleFileParser
         File[] files,
         string template,
         List<Type> extensions,
+        object? templateInstance,
         IErrorReporter errorReporter,
         out bool success)
     {
-        var instance = new CliSingleFileParser(extensions, errorReporter, templatePath);
+        var instance = new CliSingleFileParser(extensions, templateInstance, errorReporter, templatePath);
         var output = instance.ParseTemplate(template, files);
         success = !instance._hasError;
 
@@ -39,14 +41,16 @@ public class CliSingleFileParser
     }
 
     private readonly List<Type> _extensions;
+    private readonly object? _templateInstance;
     private readonly IErrorReporter _errorReporter;
     private readonly string _templatePath;
     private bool _matchFound;
     private bool _hasError;
 
-    private CliSingleFileParser(List<Type> extensions, IErrorReporter errorReporter, string templatePath)
+    private CliSingleFileParser(List<Type> extensions, object? templateInstance, IErrorReporter errorReporter, string templatePath)
     {
         _extensions = extensions;
+        _templateInstance = templateInstance;
         _errorReporter = errorReporter;
         _templatePath = templatePath;
     }
@@ -199,34 +203,7 @@ public class CliSingleFileParser
         if (filter != null && filter.StartsWith("$", StringComparison.OrdinalIgnoreCase))
         {
             var predicate = filter.Remove(0, 1);
-            if (_extensions != null)
-            {
-                var method = _extensions.FirstOrDefault()?.GetMethod(predicate);
-                if (method != null)
-                {
-                    try
-                    {
-                        items = collection.Where(x => (bool)method.Invoke(null, new object[] { x })!).ToList();
-                        _matchFound = _matchFound || items.Any();
-                    }
-                    catch (Exception e)
-                    {
-                        items = Array.Empty<Item>();
-                        _hasError = true;
-
-                        var message = $"Error rendering template. Cannot apply filter to identifier '{identifier}'.";
-                        LogException(e, message, sourcePath);
-                    }
-                }
-                else
-                {
-                    items = Array.Empty<Item>();
-                }
-            }
-            else
-            {
-                items = Array.Empty<Item>();
-            }
+            items = ApplyPredicateFilter(collection, predicate, identifier, sourcePath);
         }
         else
         {
@@ -234,6 +211,64 @@ public class CliSingleFileParser
         }
 
         return items;
+    }
+
+    private IEnumerable<Item> ApplyPredicateFilter(
+        IEnumerable<Item> collection,
+        string predicate,
+        string identifier,
+        string sourcePath)
+    {
+        // First, try to find the method on the template instance
+        if (_templateInstance != null)
+        {
+            var templateType = _templateInstance.GetType();
+            var method = templateType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(m => m.Name == predicate && m.GetParameters().Length == 1);
+
+            if (method != null)
+            {
+                try
+                {
+                    var items = collection.Where(x => (bool)method.Invoke(_templateInstance, new object[] { x })!).ToList();
+                    _matchFound = _matchFound || items.Any();
+                    return items;
+                }
+                catch (Exception e)
+                {
+                    _hasError = true;
+                    var message = $"Error rendering template. Cannot apply filter to identifier '{identifier}'.";
+                    LogException(e, message, sourcePath);
+                    return Array.Empty<Item>();
+                }
+            }
+        }
+
+        // Fall back to looking for static methods in extensions
+        foreach (var ext in _extensions)
+        {
+            var method = ext.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(m => m.Name == predicate && m.GetParameters().Length == 1);
+
+            if (method != null)
+            {
+                try
+                {
+                    var items = collection.Where(x => (bool)method.Invoke(null, new object[] { x })!).ToList();
+                    _matchFound = _matchFound || items.Any();
+                    return items;
+                }
+                catch (Exception e)
+                {
+                    _hasError = true;
+                    var message = $"Error rendering template. Cannot apply filter to identifier '{identifier}'.";
+                    LogException(e, message, sourcePath);
+                    return Array.Empty<Item>();
+                }
+            }
+        }
+
+        return Array.Empty<Item>();
     }
 
     private static string? ParseBlock(TemplateStream stream, char open, char close, bool onlyPeek = false)
@@ -267,6 +302,7 @@ public class CliSingleFileParser
 
         try
         {
+            // First, try to find a property on the context object
             var property = type.GetProperty(identifier);
             if (property != null)
             {
@@ -274,14 +310,46 @@ public class CliSingleFileParser
                 return true;
             }
 
-            var extension = _extensions
-                .Select(e => e.GetMethod(identifier, new[] { type }))
-                .FirstOrDefault(m => m != null);
-
-            if (extension != null)
+            // Try to find a method in the template instance
+            if (_templateInstance != null)
             {
-                value = extension.Invoke(null, new[] { context });
-                return true;
+                var templateType = _templateInstance.GetType();
+                var methods = templateType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(m => m.Name == identifier)
+                    .ToList();
+
+                foreach (var method in methods)
+                {
+                    var parameters = method.GetParameters();
+                    if (parameters.Length == 1 && parameters[0].ParameterType.IsAssignableFrom(type))
+                    {
+                        value = method.Invoke(_templateInstance, new[] { context });
+                        return true;
+                    }
+                    if (parameters.Length == 0)
+                    {
+                        value = method.Invoke(_templateInstance, Array.Empty<object>());
+                        return true;
+                    }
+                }
+            }
+
+            // Also try static extension methods
+            foreach (var ext in _extensions)
+            {
+                var staticMethods = ext.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(m => m.Name == identifier)
+                    .ToList();
+
+                foreach (var method in staticMethods)
+                {
+                    var parameters = method.GetParameters();
+                    if (parameters.Length == 1 && parameters[0].ParameterType.IsAssignableFrom(type))
+                    {
+                        value = method.Invoke(null, new[] { context });
+                        return true;
+                    }
+                }
             }
         }
         catch (Exception e)

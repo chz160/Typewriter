@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>MixedSolution.SdkProject</RootNamespace>
+    <AssemblyName>SdkProject</AssemblyName>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LegacyProject\LegacyProject.csproj" />
+  </ItemGroup>
+
+  <!-- External file reference for testing -->
+  <ItemGroup>
+    <Compile Include="..\SharedFiles\SharedClass.cs" Link="SharedClass.cs" />
+  </ItemGroup>
+
+</Project>
