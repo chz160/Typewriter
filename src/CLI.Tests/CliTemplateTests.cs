@@ -400,6 +400,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -422,6 +423,7 @@ public class CliParserTests
             "source.cs",
             "$Items(*Model)[$Name][, ]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -444,6 +446,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name][ | ]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -464,6 +467,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -484,6 +488,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name] $IsClass[class][interface]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -504,6 +509,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name] $IsClass[class][interface]",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -523,6 +529,7 @@ public class CliParserTests
             "source.cs",
             "",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -541,6 +548,7 @@ public class CliParserTests
             "source.cs",
             null!,
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -561,6 +569,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name] I$Name",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);
@@ -581,6 +590,7 @@ public class CliParserTests
             "source.cs",
             "$Items[$Name] Count: $Count",
             new List<Type>(),
+            null, // templateInstance
             context,
             errorReporter,
             out var success);

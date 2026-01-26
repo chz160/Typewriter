@@ -297,4 +297,33 @@ public class DiagnosticCollection
     {
         _diagnostics.Clear();
     }
+
+    /// <summary>
+    /// Gets all diagnostic messages as a read-only list.
+    /// </summary>
+    /// <returns>A read-only list of all diagnostic messages.</returns>
+    public IReadOnlyList<DiagnosticMessage> GetMessages()
+    {
+        return _diagnostics.ToList();
+    }
+
+    /// <summary>
+    /// Converts diagnostic messages to the Models namespace format for LoadingResult.
+    /// </summary>
+    /// <returns>A list of diagnostic messages in the Models format.</returns>
+    public IReadOnlyList<Models.DiagnosticMessage> ToModelDiagnostics()
+    {
+        return _diagnostics.Select(d => new Models.DiagnosticMessage(
+            d.Severity switch
+            {
+                DiagnosticSeverity.Info => Models.DiagnosticSeverity.Info,
+                DiagnosticSeverity.Warning => Models.DiagnosticSeverity.Warning,
+                DiagnosticSeverity.Error => Models.DiagnosticSeverity.Error,
+                _ => Models.DiagnosticSeverity.Info
+            },
+            d.Message,
+            d.FilePath,
+            d.Code
+        )).ToList();
+    }
 }

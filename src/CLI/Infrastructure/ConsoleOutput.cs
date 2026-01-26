@@ -43,7 +43,7 @@ public class ConsoleOutput
     /// Writes an error message in red to stderr.
     /// </summary>
     /// <param name="message">The message to write.</param>
-    public void Error(string message)
+    public virtual void Error(string message)
     {
         _diagnostics.AddError(message);
         WriteColored($"Error: {message}", Red, Console.Error);
@@ -66,7 +66,7 @@ public class ConsoleOutput
     /// Writes a warning message in yellow to stderr.
     /// </summary>
     /// <param name="message">The message to write.</param>
-    public void Warning(string message)
+    public virtual void Warning(string message)
     {
         _diagnostics.AddWarning(message);
         WriteColored($"Warning: {message}", Yellow, Console.Error);
@@ -89,7 +89,7 @@ public class ConsoleOutput
     /// Writes an informational message in default color.
     /// </summary>
     /// <param name="message">The message to write.</param>
-    public void Info(string message)
+    public virtual void Info(string message)
     {
         Console.WriteLine(message);
     }
@@ -98,7 +98,7 @@ public class ConsoleOutput
     /// Writes a verbose/debug message in gray.
     /// </summary>
     /// <param name="message">The message to write.</param>
-    public void Verbose(string message)
+    public virtual void Verbose(string message)
     {
         WriteColored(message, Gray, Console.Out);
     }

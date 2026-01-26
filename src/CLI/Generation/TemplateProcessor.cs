@@ -183,9 +183,7 @@ public class TemplateProcessor
         {
             // Collect all file metadata
             var files = new List<File>();
-            var settings = new CliSettings(
-                _workspace.SolutionPath ?? _workspace.ProjectPath ?? string.Empty,
-                template.TemplatePath);
+            var settings = template.Settings;
 
             foreach (var sourceFile in matchingFiles)
             {
@@ -239,10 +237,8 @@ public class TemplateProcessor
         bool dryRun,
         CancellationToken cancellationToken)
     {
-        // Get file metadata
-        var settings = new CliSettings(
-            _workspace.SolutionPath ?? _workspace.ProjectPath ?? string.Empty,
-            template.TemplatePath);
+        // Get file metadata - use template.Settings to preserve settings modified by template constructor
+        var settings = template.Settings;
 
         var fileMetadata = _metadataProvider.GetFile(sourceFile, settings, _ => { });
         if (fileMetadata == null)

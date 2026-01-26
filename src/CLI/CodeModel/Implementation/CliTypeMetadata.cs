@@ -58,7 +58,23 @@ public class CliTypeMetadata : ITypeMetadata
     public IEnumerable<IPropertyMetadata> Properties => CliPropertyMetadata.FromPropertySymbols((_symbol as INamedTypeSymbol)?.GetMembers().OfType<IPropertySymbol>() ?? Enumerable.Empty<IPropertySymbol>(), _settings);
     public IEnumerable<IStaticReadOnlyFieldMetadata> StaticReadOnlyFields => CliStaticReadOnlyFieldMetadata.FromFieldSymbols((_symbol as INamedTypeSymbol)?.GetMembers().OfType<IFieldSymbol>() ?? Enumerable.Empty<IFieldSymbol>(), _settings);
     public IEnumerable<ITypeParameterMetadata> TypeParameters => CliTypeParameterMetadata.FromTypeParameterSymbols((_symbol as INamedTypeSymbol)?.TypeParameters ?? Enumerable.Empty<ITypeParameterSymbol>());
-    public IEnumerable<ITypeMetadata> TypeArguments => FromTypeSymbols((_symbol as INamedTypeSymbol)?.TypeArguments ?? Enumerable.Empty<ITypeSymbol>(), _settings);
+    public IEnumerable<ITypeMetadata> TypeArguments
+    {
+        get
+        {
+            if (_symbol is INamedTypeSymbol namedTypeSymbol)
+            {
+                return FromTypeSymbols(namedTypeSymbol.TypeArguments, _settings);
+            }
+
+            if (_symbol is IArrayTypeSymbol arrayTypeSymbol)
+            {
+                return FromTypeSymbols(new[] { arrayTypeSymbol.ElementType }, _settings);
+            }
+
+            return Enumerable.Empty<ITypeMetadata>();
+        }
+    }
     public IEnumerable<IFieldMetadata> TupleElements => GetTupleElements();
     public ITypeMetadata? ElementType => _symbol is IArrayTypeSymbol arrayTypeSymbol ? FromTypeSymbol(arrayTypeSymbol.ElementType, _settings) : null;
     public IEnumerable<string> FileLocations => _symbol.Locations.Where(l => l.SourceTree != null).Select(l => l.SourceTree!.FilePath);

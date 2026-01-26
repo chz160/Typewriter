@@ -225,13 +225,38 @@ public static class GenerateCommand
                 output.Info("Loading workspace...");
             }
 
+            Infrastructure.Models.LoadingResult loadingResult;
             if (solutionPath != null)
             {
-                await workspace.LoadSolutionAsync(solutionPath, cancellationToken);
+                loadingResult = await workspace.LoadSolutionWithResultAsync(solutionPath, cancellationToken);
             }
             else
             {
-                await workspace.LoadProjectAsync(projectPath!, cancellationToken);
+                loadingResult = await workspace.LoadProjectWithResultAsync(projectPath!, cancellationToken);
+            }
+
+            // Output detailed timing information when verbose
+            if (effectiveVerbose && !effectiveQuiet)
+            {
+                output.Verbose($"  Loaded {loadingResult.ProjectCount} project(s) with {loadingResult.SourceFileCount} source file(s)");
+                output.Verbose($"  Loading time: {loadingResult.LoadTime.TotalSeconds:F2}s");
+                if (loadingResult.UsedFallback)
+                {
+                    output.Verbose($"  Used fallback loading: {loadingResult.FallbackReason}");
+                }
+                else
+                {
+                    output.Verbose("  Used fast loading (direct Roslyn)");
+                }
+            }
+
+            if (!loadingResult.Success)
+            {
+                foreach (var diag in loadingResult.Diagnostics)
+                {
+                    output.Error(diag.Message);
+                }
+                return ExitCodes.GenerationFailure;
             }
 
             if (workspace.Diagnostics.HasErrors)
@@ -339,7 +364,15 @@ public static class GenerateCommand
                     output.Warning($"{warningCount} warning(s)");
                 }
 
-                output.Info($"Completed in {stopwatch.Elapsed.TotalSeconds:F1}s");
+                if (effectiveVerbose)
+                {
+                    var generationTime = stopwatch.Elapsed - loadingResult.LoadTime;
+                    output.Info($"Completed in {stopwatch.Elapsed.TotalSeconds:F1}s (loading: {loadingResult.LoadTime.TotalSeconds:F2}s, generation: {generationTime.TotalSeconds:F2}s)");
+                }
+                else
+                {
+                    output.Info($"Completed in {stopwatch.Elapsed.TotalSeconds:F1}s");
+                }
             }
 
             return errorCount > 0 ? ExitCodes.GenerationFailure : ExitCodes.Success;
