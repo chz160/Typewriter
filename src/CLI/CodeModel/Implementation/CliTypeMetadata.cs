@@ -103,10 +103,40 @@ public class CliTypeMetadata : ITypeMetadata
     {
         var isNullable = symbol.NullableAnnotation == NullableAnnotation.Annotated;
 
+        // Handle Nullable<T> types
         if (symbol is INamedTypeSymbol namedType && namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
         {
             isNullable = true;
             symbol = namedType.TypeArguments.First();
+        }
+        // Handle Task<T> types - unwrap to return the inner type (matches VS extension behavior)
+        else if (symbol.Name.Equals("Task", StringComparison.OrdinalIgnoreCase) &&
+                 symbol.ContainingNamespace?.ToDisplayString().Equals("System.Threading.Tasks", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var taskType = symbol as INamedTypeSymbol;
+            var argument = taskType?.TypeArguments.FirstOrDefault();
+
+            if (argument != null)
+            {
+                // Handle Task<Nullable<T>> - unwrap to T with nullable flag
+                if (argument.Name.Equals("Nullable", StringComparison.OrdinalIgnoreCase) &&
+                    argument.ContainingNamespace?.Name.Equals("System", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    var innerType = argument as INamedTypeSymbol;
+                    var innerArgument = innerType?.TypeArguments.FirstOrDefault();
+
+                    if (innerArgument != null)
+                    {
+                        return new CliTypeMetadata(innerArgument, true, settings);
+                    }
+                }
+
+                // Handle Task<T> - unwrap to T
+                return new CliTypeMetadata(argument, false, settings);
+            }
+
+            // Task without type argument (void Task) - return as-is
+            // Note: VS extension returns RoslynVoidTaskMetadata, we return the Task type itself
         }
 
         return new CliTypeMetadata(symbol, isNullable, settings);
