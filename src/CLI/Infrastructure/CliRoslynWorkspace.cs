@@ -327,12 +327,14 @@ public class CliRoslynWorkspace : IDisposable
     /// <param name="sourceWorkspace">The source workspace to copy from.</param>
     private void CopyProjectsToWorkspace(DirectRoslynWorkspace sourceWorkspace)
     {
-        // We need to transfer the solution from the DirectRoslynWorkspace to our AdhocWorkspace
-        // The simplest approach is to add each project and its documents
-        foreach (var project in sourceWorkspace.GetProjects())
+        var projects = sourceWorkspace.GetProjects().ToList();
+        var projectIds = projects.ToDictionary(p => p.Id, p => ProjectId.CreateNewId(p.Name));
+        var solution = _workspace.CurrentSolution;
+
+        foreach (var project in projects)
         {
             var projectInfo = Microsoft.CodeAnalysis.ProjectInfo.Create(
-                ProjectId.CreateNewId(project.Name),
+                projectIds[project.Id],
                 VersionStamp.Create(),
                 project.Name,
                 project.AssemblyName,
@@ -342,7 +344,7 @@ public class CliRoslynWorkspace : IDisposable
                 parseOptions: project.ParseOptions,
                 metadataReferences: project.MetadataReferences);
 
-            var solution = _workspace.CurrentSolution.AddProject(projectInfo);
+            solution = solution.AddProject(projectInfo);
 
             foreach (var document in project.Documents)
             {
@@ -350,8 +352,18 @@ public class CliRoslynWorkspace : IDisposable
                 var text = document.GetTextAsync().Result;
                 solution = solution.AddDocument(documentId, document.Name, text, filePath: document.FilePath);
             }
+        }
 
-            _workspace.TryApplyChanges(solution);
+        foreach (var project in projects)
+        {
+            var references = project.ProjectReferences.Select(reference => new ProjectReference(
+                projectIds[reference.ProjectId], reference.Aliases, reference.EmbedInteropTypes));
+            solution = solution.AddProjectReferences(projectIds[project.Id], references);
+        }
+
+        if (!_workspace.TryApplyChanges(solution))
+        {
+            throw new InvalidOperationException("Failed to copy projects to the CLI workspace.");
         }
     }
 
